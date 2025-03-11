@@ -1,11 +1,11 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "Service.js",
+  "main": "Equipmentservice.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     
-    "start": "node Service.js"
+    "start": "node Equipmentservice.js"
   },
   "author": "",
   "license": "ISC",

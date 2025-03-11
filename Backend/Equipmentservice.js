@@ -31,18 +31,18 @@ db.connect(err => {
 
 
 // GET all tusers
-app.get("/tusers", (req, res) => {
-    db.query("SELECT * FROM trainer", (err, results) => {
+app.get("/equip", (req, res) => {
+    db.query("SELECT * FROM equipment", (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
         res.json(results);
     });
 });
 
 // DELETE user by ID
-app.delete("/tusers/:id", (req, res) => {
+app.delete("/equip/:id", (req, res) => {
     const id = req.params.id;
 
-    db.query("DELETE FROM trainer WHERE id = ?", [id], (err, result) => {
+    db.query("DELETE FROM equipment WHERE id = ?", [id], (err, result) => {
         if (err) return res.status(500).json({ error: "Database error" });
 
         if (result.affectedRows === 0) {
@@ -54,48 +54,49 @@ app.delete("/tusers/:id", (req, res) => {
 });
 
 // POST - Add a new user
-app.post("/tusers", (req, res) => {
-    const { name, age, city, experience, mobile, email } = req.body;
+app.post("/equip", (req, res) => {
+    const { name, quantity, vendor, price, contact, place } = req.body;
 
-    if (!name || !age || !city || !experience || !mobile || !email) {
+    // Check if all required fields are provided
+    if (!name || !quantity || !vendor || !price || !contact || !place) {
         return res.status(400).json({ message: "All fields are required!" });
     }
 
-    // Check if user already exists
-    db.query("SELECT * FROM trainer WHERE mobile = ?", [mobile], (err, results) => {
-        if (err) {
-            console.error("Database SELECT error:", err);  // Debugging
-            return res.status(500).json({ error: "Database error" });
-        }
+    // Check if vendor already exists
+    // db.query("SELECT * FROM equipment WHERE vendor = ? && name=?", [vendor,name], (err, results) => {
+    //     if (err) {
+    //         console.error("Database SELECT error:", err.message); // Improved Debugging
+    //         return res.status(500).json({ error: "Database error", details: err.message });
+    //     }
 
-        if (results.length > 0) {
-            return res.status(409).json({ message: "User with this mobile number already exists!" });
-        }
+    //     if (results.length > 0) {
+    //         return res.status(409).json({ message: "Vendor already exists!" });
+    //     }
 
-        // Insert new user
-        const sql = "INSERT INTO trainer (name, age, city, experience, mobile, email) VALUES (?, ?, ?, ?, ?, ?)";
-        const values = [name, age, city, experience, mobile, email];
+        // Insert new equipment data
+        const sql = "INSERT INTO equipment (name, quantity, vendor, price, contact, place) VALUES (?, ?, ?, ?, ?, ?)";
+        const values = [name, quantity, vendor, price, contact, place];
 
         db.query(sql, values, (err, result) => {
             if (err) {
-                console.error("Database INSERT error:", err);  // Debugging
-                return res.status(500).json({ error: "Database error" });
+                console.error("Database INSERT error:", err.message); // Improved Debugging
+                return res.status(500).json({ error: "Database error", details: err.message });
             }
 
-            console.log("User added successfully:", result);
-            res.json({ message: "User added successfully", id: result.insertId });
+            console.log("Equipment added successfully:", result);
+            res.status(201).json({ message: "Equipment added successfully", id: result.insertId });
         });
     });
-});
+
 
 
 // PATCH - Update user by ID
-app.patch("/tusers/:id", (req, res) => {
+app.patch("/equip/:id", (req, res) => {
     const id = req.params.id;
-    const { name, age, city, experience, mobile,email } = req.body;
+    const { name, quantity, vendor, price, contact,place } = req.body;
 
     // Fetch the user first
-    db.query("SELECT * FROM trainer WHERE id = ?", [id], (err, results) => {
+    db.query("SELECT * FROM equipment WHERE id = ?", [id], (err, results) => {
         if (err) return res.status(500).json({ error: "Database error" });
 
         if (results.length === 0) {
@@ -107,17 +108,16 @@ app.patch("/tusers/:id", (req, res) => {
         // Update only provided fields
         const updatedUser = {
             name: name || user.name,
-            age: age || user.age,
-            city: city || user.city,
-            experience: experience || user.experience,
-            mobile: mobile || user.mobile,
-        
-            email: email || user.email
+            quantity: quantity || user.quantity,
+            vendor: vendor || user.vendor,
+            price: price || user.price,
+            contact: contact || user.contact,
+            place: place || user.place
         };
 
         db.query(
-            "UPDATE trainer SET name=?, age=?, city=?, experience=?, mobile=?,email=? WHERE id=?",
-            [updatedUser.name, updatedUser.age, updatedUser.city, updatedUser.experience, updatedUser.mobile,updatedUser.email ,id],
+            "UPDATE equipment SET name=?, quantity=?, vendor=?, price=?, contact=?,place=? WHERE id=?",
+            [updatedUser.name, updatedUser.quantity, updatedUser.vendor, updatedUser.price, updatedUser.contact,updatedUser.place ,id],
             (err) => {
                 if (err) return res.status(500).json({ error: "Database error" });
 

@@ -1,118 +1,133 @@
-require("dotenv").config();
 const express = require("express");
-const mysql = require("mysql2");
 const cors = require("cors");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const redis = require("redis");
+const mysql = require("mysql2");
 
 const app = express();
-app.use(cors());
 app.use(express.json());
+const port = 5000;
 
-// Redis client for token blacklisting
-const client = redis.createClient();
-client.on("error", (err) => {
-  console.error("Redis error:", err);
-});
-client.connect();
+app.use(cors({
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST", "PATCH", "DELETE"]
+}));
 
-// Database connection
+// MySQL Database Connection
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root", // Change according to your MySQL user
-  password: "ribai123", // Change according to your MySQL password
-  database: "alpha",
+    host: "localhost",
+    user: "root",      // Change this to your MySQL username
+    password: "ribai123",      // Change this to your MySQL password
+    database: "alpha" // Change this to your MySQL database name
 });
 
-db.connect((err) => {
-  if (err) {
-    console.error("Database connection failed:", err);
-  } else {
-    console.log("Connected to MySQL database.");
-  }
-});
-
-// Signup Endpoint
-app.post("/signup", async (req, res) => {
-  const { name, email, password } = req.body;
-
-  const checkUser = "SELECT * FROM customer WHERE email = ?";
-  db.query(checkUser, [email], async (err, result) => {
-    if (result.length > 0) {
-      return res.status(400).json({ message: "Email already registered" });
+// Connect to MySQL
+db.connect(err => {
+    if (err) {
+        console.error("Database connection failed:", err);
+        return;
     }
+    console.log("Connected to MySQL database");
+});
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const sql = "INSERT INTO customer (name, email, password) VALUES (?, ?, ?)";
-    db.query(sql, [name, email, hashedPassword], (err, result) => {
-      if (err) return res.status(500).json({ error: "Registration failed" });
-      res.json({ message: "Registration successful" });
+
+
+// GET all users
+app.get("/users", (req, res) => {
+    db.query("SELECT * FROM userdata", (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+        res.json(results);
     });
-  });
 });
 
-// Login Endpoint
-app.post("/login", (req, res) => {
-  const { email, password } = req.body;
+// DELETE user by ID
+app.delete("/users/:id", (req, res) => {
+    const id = req.params.id;
 
-  const sql = "SELECT * FROM customer WHERE email = ?";
-  db.query(sql, [email], async (err, results) => {
-    if (err || results.length === 0) {
-      return res.status(401).json({ message: "Invalid credentials" });
+    db.query("DELETE FROM userdata WHERE id = ?", [id], (err, result) => {
+        if (err) return res.status(500).json({ error: "Database error" });
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "User not found!" });
+        }
+
+        res.json({ message: "User deleted successfully" });
+    });
+});
+
+// POST - Add a new user
+app.post("/users", (req, res) => {
+    const { name, age, city, membertype, plan, mobile, email } = req.body;
+
+    if (!name || !age || !city || !membertype || !mobile || !plan || !email) {
+        return res.status(400).json({ message: "All fields are required!" });
     }
 
-    const user = results[0];
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+    // Check if user already exists
+    db.query("SELECT * FROM userdata WHERE mobile = ?", [mobile], (err, results) => {
+        if (err) {
+            console.error("Database SELECT error:", err);  // Debugging
+            return res.status(500).json({ error: "Database error" });
+        }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      "your_secret_key",
-      { expiresIn: "1h" }
-    );
+        if (results.length > 0) {
+            return res.status(409).json({ message: "User with this mobile number already exists!" });
+        }
 
-    res.json({ message: "Login successful", token });
-  });
+        // Insert new user
+        const sql = "INSERT INTO userdata (name, age, city, membertype, mobile, plan, email) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        const values = [name, age, city, membertype, mobile, plan, email];
+
+        db.query(sql, values, (err, result) => {
+            if (err) {
+                console.error("Database INSERT error:", err);  // Debugging
+                return res.status(500).json({ error: "Database error" });
+            }
+
+            console.log("User added successfully:", result);
+            res.json({ message: "User added successfully", id: result.insertId });
+        });
+    });
 });
 
-// Logout Endpoint (Blacklist token)
-app.post("/logout", async (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
 
-  if (!token) {
-    return res.status(400).json({ message: "No token provided" });
-  }
+// PATCH - Update user by ID
+app.patch("/users/:id", (req, res) => {
+    const id = req.params.id;
+    const { name, age, city, membertype, mobile,plan,email } = req.body;
 
-  await client.set(token, "blacklisted", "EX", 3600); // Expire in 1 hour
+    // Fetch the user first
+    db.query("SELECT * FROM userdata WHERE id = ?", [id], (err, results) => {
+        if (err) return res.status(500).json({ error: "Database error" });
 
-  res.json({ message: "Logout successful" });
+        if (results.length === 0) {
+            return res.status(404).json({ message: "User not found!" });
+        }
+
+        const user = results[0];
+
+        // Update only provided fields
+        const updatedUser = {
+            name: name || user.name,
+            age: age || user.age,
+            city: city || user.city,
+            membertype: membertype || user.membertype,
+            mobile: mobile || user.mobile,
+            plan: plan || user.plan,
+            email: email || user.email
+        };
+
+        db.query(
+            "UPDATE userdata SET name=?, age=?, city=?, membertype=?, mobile=?,plan=?,email=? WHERE id=?",
+            [updatedUser.name, updatedUser.age, updatedUser.city, updatedUser.membertype, updatedUser.mobile,updatedUser.plan,updatedUser.email ,id],
+            (err) => {
+                if (err) return res.status(500).json({ error: "Database error" });
+
+                res.json({ message: "User updated successfully" });
+            }
+        );
+    });
 });
 
-// Middleware to check if token is blacklisted
-const authMiddleware = async (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-
-  if (!token) return res.status(401).json({ message: "Access denied" });
-
-  const isBlacklisted = await client.get(token);
-  if (isBlacklisted) return res.status(401).json({ message: "Token is invalid" });
-
-  jwt.verify(token, "your_secret_key", (err, user) => {
-    if (err) return res.status(403).json({ message: "Invalid token" });
-
-    req.user = user;
-    next();
-  });
-};
-
-// Example of a protected route
-app.get("/protected", authMiddleware, (req, res) => {
-  res.json({ message: "This is a protected route", user: req.user });
+// Start server
+app.listen(port, () => {
+    console.log(`Running on port ${port}`);
 });
-
-// Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
