@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const mysql = require("mysql2");
-
+const bcrypt = require("bcryptjs");
 const app = express();
 app.use(express.json());
 const port = 5000;
@@ -126,6 +126,27 @@ app.patch("/users/:id", (req, res) => {
         );
     });
 });
+
+
+// signup code
+
+// app.post("/signup", async (req, res) => {
+//   const { name, email, password } = req.body;
+
+//   const checkUser = "SELECT * FROM customer WHERE email = ?";
+//   db.query(checkUser, [email], async (err, result) => {
+//     if (result.length > 0) {
+//       return res.status(400).json({ message: "Email already registered" });
+//     }
+
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     const sql = "INSERT INTO customer (name, email, password) VALUES (?, ?, ?)";
+//     db.query(sql, [name, email, hashedPassword], (err, result) => {
+//       if (err) return res.status(500).json({ error: "Registration failed" });
+//       res.json({ message: "Registration successful" });
+//     });
+//   });
+// });
 
 // Start server
 app.listen(port, () => {
